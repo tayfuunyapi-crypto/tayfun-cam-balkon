@@ -317,6 +317,8 @@ const sysList = () => (S.bundle && S.bundle.systems && S.bundle.systems.length) 
 // Küpeşte: "Çizim Ekle"de seçilir ama kendi ekranında (Küpeşte) hesaplanır; çizim sihirbazında yoktur
 const RAIL_SYS = { code: "RAILING_25X60", name: "Küpeşte", kind: "railing" };
 const sysName = code => code === RAIL_SYS.code ? RAIL_SYS.name : (sysList().find(s => s.code === code) || {}).name || code;
+// telefonda eklenen seriler hesap motorunda temel sistemin koduyla anılır (kanat önerisi vb.)
+const baseCode = code => (sysList().find(s => s.code === code) || {}).base || code;
 const sysKind = code => code === RAIL_SYS.code ? "railing" : (sysList().find(s => s.code === code) || {}).kind || "folding";
 function openRailingDrawing(key, tab) {
   // projedeki küpeşte çizimi → Küpeşte ekranı (proje modu)
@@ -344,6 +346,7 @@ async function loadAll() {
     else { try { S.bundle = JSON.parse(localStorage.getItem("cb_bundle") || "null"); } catch (e) {} }
     applyCutOverrides();
     applySysEdits();
+    applyCutOverrides();   // telefonda eklenen serilerin kesim ayarları da uygulansın
     if (S.py && S.bundle) {
       if (S.bundle.src && S.pySrc !== S.bundle.generated_at) { S.pyReady = null; S.py = null; }
       else S.py.globals.get("bridge").set_bundle(JSON.stringify(S.bundle));
@@ -370,14 +373,12 @@ function cutSettingsView(code) {
   if (!isAdmin()) return toast("Bu bölüm yalnız yöneticide açık");
   const b = S.bundle;
   if (!b || !b.cut_fields) { toast("Kesim ayarları için bilgisayarda bir kez Senkron yapılmalı"); return; }
-  const systems = (b.systems || []).filter(x => (b.cut_fields[x.code] || []).length);
+  const systems = (b.systems || []).filter(x => !x.hidden && (b.cut_fields[x.code] || []).length);
   code = code || (systems[0] && systems[0].code);
   const fields = b.cut_fields[code] || [], cur = currentCut(code);
-  const pending = [...S.recs.values()].some(r => r.kind === "cut" && r.origin === "mobile" && r.data && r.data.system_code === code);
   sheet("Kesim Ayarları", `
     <label class="f">Sistem</label>
     <select class="f" id="cs">${systems.map(x => `<option value="${x.code}"${x.code === code ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
-    ${pending ? `<div class="warn">Son değişiklik bilgisayara henüz işlenmedi — program açılınca otomatik alınır.</div>` : ""}
     <div id="cf">${fields.map(([k, label, def]) => `<label class="f">${esc(label)}</label>
       <input class="f" data-k="${k}" inputmode="decimal" value="${String(cur[k] ?? def).replace(".", ",")}">`).join("")}</div>
     <button class="btn" id="csave">KAYDET</button>
@@ -2350,6 +2351,23 @@ function applySysEdit(d) {
   } else if (d.op === "roles") {
     const se = c && c.series[d.system_code]; if (se) se.roles = { ...se.roles, ...(d.roles || {}) };
     Object.values(ctxs[d.system_code] || {}).forEach(ctx => { ctx.roles = { ...(ctx.roles || {}), ...(d.roles || {}) }; });
+  } else if (d.op === "add_series") {
+    // Temel sistemin katalog, hesap bağlamı ve kesim alanları yeni koda kopyalanır. Hesap motoru seriyi
+    // bağlamdaki kind/base ile tanır. Kayıt her açılışta yeniden uygulandığı için var olan kod atlanır.
+    const base = c && c.series[d.base_code];
+    if (!d.code || !base || c.series[d.code]) return;
+    const copy = JSON.parse(JSON.stringify(base));
+    c.series[d.code] = { ...copy, name: d.name, custom: true, base: copy.base || d.base_code,
+      settings: { ...(copy.settings || {}), series_name: d.name } };
+    ctxs[d.code] = JSON.parse(JSON.stringify(ctxs[d.base_code] || {}));
+    Object.values(ctxs[d.code]).forEach(ctx => { ctx.series_name = d.name; ctx.base = ctx.base || d.base_code; });
+    if (S.bundle.cut_fields && S.bundle.cut_fields[d.base_code]) S.bundle.cut_fields[d.code] = S.bundle.cut_fields[d.base_code];
+    const sl = (S.bundle.systems || []).find(x => x.code === d.base_code);
+    (S.bundle.systems || (S.bundle.systems = [])).push({ code: d.code, kind: (sl && sl.kind) || copy.kind, name: d.name, base: d.base_code });
+  } else if (d.op === "delete_series") {
+    // Seri listelerden kaldırılır ama bağlamı kalır: o seriyle çizilmiş işler açılınca yine hesaplanır.
+    const se = c && c.series[d.system_code]; if (se) se.hidden = true;
+    const sl = (S.bundle.systems || []).find(x => x.code === d.system_code); if (sl) sl.hidden = true;
   }
 }
 async function sysEdit(data, msg) {
@@ -2364,7 +2382,7 @@ async function sysEdit(data, msg) {
 }
 const pendingNote = code => {
   const n = pendingSys().filter(r => !code || r.data.system_code === code || (r.data.system_codes || []).includes(code)).length;
-  return n ? `<div class="warn">${n} değişiklik bilgisayara henüz işlenmedi — program açıkken birkaç dakikada otomatik alınır. Telefondaki hesaplar yeni değerlerle yapılıyor.</div>` : "";
+  return "";   // değişiklikler artık hemen geçerli; masaüstüne işlenmeyi bekleyen bir şey yok
 };
 function noCatalog() {
   shell("Ürün Kataloğu", `<div class="card"><div class="t1">Sistem bilgileri henüz gelmedi</div>
@@ -2375,9 +2393,7 @@ function noCatalog() {
 function systemsView() {
   S.tab = "systems";
   const c = catalog(); if (!c) return noCatalog();
-  const adds = pendingSys().filter(r => r.data.op === "add_series").map(r => r.data.name);
-  const dels = new Set(pendingSys().filter(r => r.data.op === "delete_series").map(r => r.data.system_code));
-  const series = Object.entries(c.series).filter(([code]) => !dels.has(code));
+  const series = Object.entries(c.series).filter(([, se]) => !se.hidden);
   shell("Ürün Kataloğu", `
     <div class="tools" style="margin-top:0">
       <button id="sAlu">₺ Alüminyum<small>fiyatı güncelle</small></button>
@@ -2389,7 +2405,6 @@ function systemsView() {
       return `<div class="card tap" data-c="${esc(code)}"><div class="row"><div class="seg"><div class="n" style="background:#E2E8F0">${sysIcon(se.kind === "folding" && /ISICAM/.test(se.base || code) ? "folding" : se.kind)}</div></div>
         <div class="grow"><div class="t1">${esc(se.name)}</div><div class="t2">${se.profiles.length} profil · ${se.accessories.length} aksesuar${pr ? " · Eloksal " + tl(pr) + "/kg" : ""}</div></div>
         ${se.custom ? `<span class="pill amber">Seri</span>` : ""}<span style="font-size:22px;color:#9CA3AF">›</span></div></div>`; }).join("")}
-      ${adds.map(n => `<div class="card"><div class="t1">${esc(n)}</div><div class="t2">Yeni seri — bilgisayarda oluşturulmayı bekliyor</div></div>`).join("")}
     </div><div style="height:90px"></div>`, { fab: "＋ Seri Ekle" });
   document.querySelectorAll("#slist .card.tap").forEach(x => x.onclick = () => location.hash = "#/system/" + encodeURIComponent(x.dataset.c));
   $("#sAlu").onclick = () => aluPriceSheet(Object.keys(c.series), "Tüm seriler");
@@ -2440,7 +2455,7 @@ function systemView(code, color) {
   $("#tList").onclick = () => priceListDoc(code);
   if ($("#tDel")) $("#tDel").onclick = async () => {
     if (!confirm(`“${se.name}” serisi silinsin mi? Bu seriyle çizilmiş projeler etkilenmez.`)) return;
-    try { await sysEdit({ op: "delete_series", system_code: code }, "Seri silinecek — bilgisayar açılınca işlenir"); location.hash = "#/systems"; } catch (e) {}
+    try { await sysEdit({ op: "delete_series", system_code: code }, "Seri silindi"); location.hash = "#/systems"; } catch (e) {}
   };
 }
 function profileSheet(code, pcode) {
@@ -2533,15 +2548,17 @@ function rolesSheet(code) {
 }
 function addSeriesSheet() {
   const c = catalog(); if (!c) return;
-  const bases = Object.entries(c.series).filter(([, se]) => !se.custom);
+  const bases = Object.entries(c.series).filter(([, se]) => !se.custom && !se.hidden);
   sheet("Seri Ekle", `<label class="f">Seri Adı (*)</label><input class="f" id="an" placeholder="örn. Altınmeşe Katlanır">
     <label class="f">Temel Sistem</label><select class="f" id="ab">${bases.map(([code, se]) => `<option value="${esc(code)}">${esc(se.name)}</option>`).join("")}</select>
-    <p class="note">Yeni seri, temel sistemin profillerini, renk fiyatlarını ve kesim ayarlarını kopyalar; sonra ayrı ayrı değiştirebilirsiniz.
-      Seri bilgisayardaki programda oluşturulur, birkaç dakika içinde buraya gelir.</p><button class="btn" id="aSave">KAYDET</button>`, (close, m) => {
+    <p class="note">Yeni seri, temel sistemin profillerini, renk fiyatlarını ve kesim ayarlarını kopyalar; sonra ayrı ayrı değiştirebilirsiniz.</p>
+    <button class="btn" id="aSave">KAYDET</button>`, (close, m) => {
     m.querySelector("#aSave").onclick = async () => {
       const name = m.querySelector("#an").value.trim();
       if (!name) { toast("Seri adını yazın"); return; }
-      try { await sysEdit({ op: "add_series", name, base_code: m.querySelector("#ab").value }, `“${name}” eklenecek — bilgisayar açılınca oluşur`); close(); systemsView(); } catch (e) {}
+      if (Object.values(c.series).some(se => !se.hidden && String(se.name).toLocaleLowerCase("tr") === name.toLocaleLowerCase("tr"))) { toast("Bu adda bir seri zaten var"); return; }
+      const code = "SERI_" + Date.now().toString(36).toUpperCase();
+      try { await sysEdit({ op: "add_series", code, name, base_code: m.querySelector("#ab").value }, `“${name}” eklendi`); close(); systemsView(); } catch (e) {}
     };
   });
 }
@@ -2671,7 +2688,7 @@ function newDrawing(pkey) {
   if (!isAdmin()) return toast("Çizim yetkisi yalnız yöneticide");
   const existing = projectDrawings(pkey);
   const pos = String(existing.reduce((m, d) => Math.max(m, parseInt(d.data.pos_no) || 0), 0) + 1);
-  sheet("Yeni Çizim", `<label class="f">Sistem</label><select class="f" id="sys">${[...sysList(), RAIL_SYS].map(s => `<option value="${s.code}">${esc(s.name)}</option>`).join("")}</select>
+  sheet("Yeni Çizim", `<label class="f">Sistem</label><select class="f" id="sys">${[...sysList().filter(s => !s.hidden), RAIL_SYS].map(s => `<option value="${s.code}">${esc(s.name)}</option>`).join("")}</select>
     <label class="f">Poz No</label><input class="f" id="pos" value="${pos}" inputmode="numeric"><button class="btn" id="go">DEVAM</button>`, close => {
     $("#go").onclick = () => {
       const key = uid();
@@ -2710,7 +2727,7 @@ function wizard() {
   const titles = ["Sistem & Renk", "Ölçüler", "Çizim", "Fiyat & Kayıt"];
   const steps = [0, 1, 2, 3].map(i => `<span class="${i === W.step ? "on" : i < W.step ? "done" : ""}">${i < W.step ? "✓" : i === W.step ? (i + 1) + " · " + titles[i] : i + 1}</span>`).join("<i></i>");
   shell(titles[W.step], `<div class="steps">${steps}</div>
-    <select class="f" id="sysSel" style="margin-bottom:8px">${sysList().map(s => `<option value="${s.code}" ${s.code === W.d.system_code ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select>
+    <select class="f" id="sysSel" style="margin-bottom:8px">${sysList().filter(s => !s.hidden || s.code === W.d.system_code).map(s => `<option value="${s.code}" ${s.code === W.d.system_code ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select>
     <div id="wbody"></div>`, {
       nav: false, back: () => leaveWizard(),
       right: `<button class="ib" id="delD" title="Sil" style="${W.isNew ? "visibility:hidden" : ""}">🗑</button>`,
@@ -2838,7 +2855,7 @@ function measureForm(index) {
       bindChips(m, "gath", v => s.gather = v);
       bindChips(m, "zside", v => s.motor_side = v);
       const mw = $("#mw"), mp = $("#mp");
-      if (mp && !s.panels) mw.oninput = async () => { try { const py = await engine(); mp.value = py.globals.get("bridge").suggest(num(mw.value), W.d.system_code); } catch (e) {} };
+      if (mp && !s.panels) mw.oninput = async () => { try { const py = await engine(); mp.value = py.globals.get("bridge").suggest(num(mw.value), baseCode(W.d.system_code)); } catch (e) {} };
       [["mw", "mh"], ["mh", ax ? "mc" : "mp"], ["mp", gy ? "mf" : null]].forEach(([a, b]) => { const el = $("#" + a); if (el) el.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); b && $("#" + b) ? $("#" + b).focus() : $("#msave").click(); } }; });
       $("#msave").onclick = () => {
         s.width = num(mw.value); s.height = num($("#mh").value);
@@ -3123,7 +3140,7 @@ function panelMenu(si, j) {
     };
     q("kReset").onclick = async () => {
       const sg = W.d.segments[si]; delete sg.glass_overrides; delete sg.panel_types; sg.manual_panels = false;
-      try { const py = await engine(); sg.panels = py.globals.get("bridge").suggest(num(sg.width), W.d.system_code); } catch (e) {}
+      try { const py = await engine(); sg.panels = py.globals.get("bridge").suggest(num(sg.width), baseCode(W.d.system_code)); } catch (e) {}
       close(); redraw();
     };
   });

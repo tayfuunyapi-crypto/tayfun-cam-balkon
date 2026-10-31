@@ -19,9 +19,12 @@ Kullanıcının her gün kullandığı, asıl geliştirilen uygulama budur: tek 
 (`src/routes/uygulama/+server.ts` → `/uygulama/index.html` yönlendirmesi).
 - Eskiden `tayfun-cambalkon.vercel.app` kabuğu bu HTML'i `cb_records` `webapp` kaydından çekiyordu; masaüstü
   "Tayfun Yapı Stüdyo" programı o kaydı güncelliyordu. Artık kaynak bu repodaki dosya; `webapp` kaydına yazılmaz.
-- Hâlâ masaüstüne bağlı kısımlar: `bundle` kaydı (sistemler, fiyatlar, Python hesap motoru `src`, montaj listesi)
-  ve `sysedit` kuyruğu (fiyat düzenlemeleri, montaj durumu "masaüstüne gönderilecek"). Bunları adım adım
-  web tarafına almak sıradaki iş.
+- `bundle` kaydı (sistemler, katalog, fiyatlar, Python hesap motoru `src`) masaüstü Stüdyo'nun son gönderdiği
+  hâlde (21.10.2026) donmuş durumda; Stüdyo artık açılmıyor. Web uygulaması pakete yazmaz: katalog
+  değişiklikleri (`color_price`, `alu_price`, `lib_price`, `series`, `roles`, `add_series`, `delete_series`)
+  `sysedit` kaydı (origin `mobile`) olarak saklanır ve her açılışta `applySysEdit` ile pakete uygulanır.
+  Yeni seri temel sistemin kopyasıdır (kod `SERI_…`, `base` alanı); silinen seri `hidden` olur, eski çizimler hesaplanmaya devam eder.
+- Montaj planı projede `data.install` ({date, time, team, notes, status}) alanında tutulur.
 - Supabase oturumu SvelteKit sayfalarıyla aynı origin'de paylaşılır (aynı localStorage anahtarı).
 - `src/routes` altındaki SvelteKit sayfaları ikinci plandadır; yeni özellikler önce `static/uygulama`ya eklenir.
 
