@@ -723,16 +723,36 @@ function usersView() {
   if (!isAdmin()) return goTo("#/home");
   S.tab = "users";
   const users = appUsers();
-  shell("Kullanıcılar", `<div class="note" style="margin-bottom:12px">Bu hesap yöneticidir. Personel cihazını bilgisayardaki eşleştirme koduyla bağlayın; ardından burada oluşturduğunuz kullanıcı ve PIN ile açılır.</div>
+  shell("Kullanıcılar", `<div class="note" style="margin-bottom:12px">Bu hesap yöneticidir. Personel cihazını aşağıdaki eşleştirme koduyla bağlayın; ardından burada oluşturduğunuz kullanıcı ve PIN ile açılır.</div>
+    <button class="btn" id="pairCode" style="margin:0 0 12px">📱 Telefon Eşleştirme Kodu Al</button>
     <div class="list">${users.map(u => `<div class="card"><div class="row"><div class="seg"><div class="n">${esc((u.data.name || "?")[0].toLocaleUpperCase("tr"))}</div></div><div class="grow"><div class="t1">${esc(u.data.name)}</div><div class="t2">${u.data.role === "admin" ? "Yönetici" : esc(u.data.title || "Kullanıcı")}</div></div>
       ${u.data.role !== "admin" ? `<button class="ib" data-edit="${esc(u.key)}" title="Düzenle">✎</button><button class="ib" data-del="${esc(u.key)}" title="Sil">🗑</button>` : `<span class="pill">Yönetici</span>`}</div></div>`).join("")}</div>`,
     { back: () => goTo("#/home"), fab: "＋ Kullanıcı Ekle" });
   $("#fab").onclick = () => userForm();
+  $("#pairCode").onclick = pairCodeSheet;
   document.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => userForm(b.dataset.edit));
   document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
     const u = rec(b.dataset.del); if (!u || !confirm(`${u.data.name} kullanıcısı silinsin mi?`)) return;
     S.recs.set(u.key, { ...u, deleted: true }); await saveAppUsers(); toast("Kullanıcı silindi"); usersView();
   });
+}
+// Eşleştirme kodunu cb-pair fonksiyonu bu hesabın oturumuyla üretir (eskiden masaüstü program alırdı).
+// Personel telefonu giriş ekranında kodu yazınca aynı hesaba bağlanır; kod 10 dakika geçerli, tek kullanımlık.
+async function pairCodeSheet() {
+  loading(true, "Kod alınıyor…");
+  try {
+    const { data } = await sb.auth.getSession();
+    const token = data.session && data.session.access_token;
+    if (!token) return toast("Oturum bulunamadı; çıkıp tekrar giriş yapın");
+    const r = await fetch(SUPABASE_URL + "/functions/v1/cb-pair", { method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: "Bearer " + token }, body: JSON.stringify({ action: "create" }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.code) return toast(j.error || "Kod alınamadı");
+    sheet("Eşleştirme Kodu", `<div style="text-align:center;font-size:44px;font-weight:800;letter-spacing:8px;margin:8px 0 14px">${esc(j.code.slice(0, 3) + " " + j.code.slice(3))}</div>
+      <p class="note" style="font-size:15px">Personel telefonunda uygulamayı açın, giriş ekranında <b>Eşleştirme Kodu</b> bölümüne bu 6 haneli kodu yazın.
+      Kod <b>10 dakika</b> geçerli ve tek kullanımlıktır. Telefon bağlandıktan sonra burada oluşturduğunuz kullanıcı ve PIN ile açılır.</p>
+      <button class="btn" id="pcOk">Tamam</button>`, close => { $("#pcOk").onclick = close; });
+  } catch (e) { toast("İnternet bağlantısını kontrol edin"); } finally { loading(false); }
 }
 function userForm(key) {
   const old = key ? rec(key) : null, data = old ? old.data : {};
@@ -773,12 +793,12 @@ function loginView() {
       <p class="note" style="margin-top:6px">Bir kez girdikten sonra bu cihazda oturum açık kalır. Ana ekrana eklemek için tarayıcı menüsünden <b>“Ana ekrana ekle”</b>.</p>
     </div>
     <div id="pairbox" style="display:none">
-      <label class="f">Bilgisayardaki kodla gir</label>
+      <label class="f">Eşleştirme Kodu</label>
       <input class="f" id="pc" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123 456"
         style="font-size:26px;letter-spacing:6px;text-align:center">
       <button class="btn" id="pgo">Giriş Yap</button>
-      <p class="note" style="margin-top:12px">Bilgisayardaki programda <b>Ayarlar → Telefon / Tablet → 📱 Telefonu Bağla</b> deyin,
-        ekranda çıkan 6 haneli kodu buraya yazın.</p>
+      <p class="note" style="margin-top:12px">Yönetici hesabında <b>Kullanıcılar → 📱 Telefon Eşleştirme Kodu Al</b> deyin,
+        çıkan 6 haneli kodu buraya yazın.</p>
       <p class="note" style="margin-top:6px"><a href="#" class="toPw" style="color:#1E293B">← E-posta ve şifreyle gir</a></p>
     </div>
     <div id="mailbox" style="display:none">
@@ -2590,12 +2610,11 @@ function settingsView() {
       <button class="btn ghost" id="out">Çıkış Yap</button></div>
     <div class="card" style="margin-top:10px"><div class="t1">Kesim Ayarları</div>
       <p class="note">Sistemlerin kesim ayarlarını (yan dikme boşluğu, cam farkları, kapak girişleri…) buradan değiştirebilirsiniz.
-      Değişiklik telefondaki hesaplarda hemen, bilgisayarda bir sonraki senkronda geçerli olur.</p>
+      Değişiklik hesaplarda hemen geçerli olur.</p>
       <button class="btn" id="cut">Kesim Ayarlarını Aç</button></div>
-    <div class="card" style="margin-top:10px"><div class="t1">Bilgisayar ile senkron</div>
-      <p class="note">Telefonda eklediğiniz müşteri, proje ve çizimler buluta kaydedilir. Bilgisayardaki <b>Tayfun Yapı Stüdyo</b>
-      açıkken birkaç dakikada bir (veya Ayarlar → <b>Bulut Senkron</b>) bunları otomatik alır; kesim listesi ve PDF'ler orada hazırlanır.</p>
-      <p class="note">Fiyat paketi: ${b ? "gönderilme " + esc(new Date(b.generated_at).toLocaleString("tr-TR")) : "<b>henüz yok</b> — bilgisayarda Bulut Senkron'a basın"}</p>
+    <div class="card" style="margin-top:10px"><div class="t1">Veriler</div>
+      <p class="note">Müşteri, proje, çizim ve katalog değişiklikleri buluta kaydedilir; bütün cihazlar aynı verileri görür.</p>
+      <p class="note">Katalog paketi: ${b ? "son masaüstü gönderimi " + esc(new Date(b.generated_at).toLocaleString("tr-TR")) + " (sonraki fiyat değişiklikleri uygulamada yapılır)" : "<b>bulunamadı</b>"}</p>
       <button class="btn" id="rf">Verileri Yenile</button></div>
     <div class="card" style="margin-top:10px"><div class="t1">Telefona / tablete ekle</div>
       <p class="note"><b>Android (Chrome):</b> ⋮ menü → “Ana ekrana ekle / Uygulamayı yükle”.<br><b>iPhone / iPad (Safari):</b> Paylaş ⬆ → “Ana Ekrana Ekle”.</p></div>`, { back: () => location.hash = "#/home" });
