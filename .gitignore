@@ -36,3 +36,6 @@ logs/
 
 # Kisayol ikonu (tools\kisayollari-olustur.ps1 uretir)
 tools/tayfun.ico
+
+# Eski uygulamanin incelenen kopyasi (Supabase webapp kaydindan)
+eski-uygulama/

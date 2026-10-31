@@ -4,7 +4,7 @@
 
 $ErrorActionPreference = 'Stop'
 $proje = Split-Path -Parent $PSScriptRoot
-$canliAdres = 'https://tayfun-cam-balkon-cloud-c5d2.vercel.app'
+$canliAdres = 'https://tayfun-cam-balkon-cloud-c5d2.vercel.app/uygulama/'
 
 $edge = @(
 	"${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
@@ -53,5 +53,14 @@ foreach ($klasor in @($masaustu, $baslat)) {
 Yeni-Kisayol (Join-Path $baslat 'Tayfun Cam Balkon (Gelistirme).lnk') "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" `
 	"-NoLogo -ExecutionPolicy Bypass -File `"$proje\tools\baslat-gelistirme.ps1`"" 'Yerel gelistirme sunucusunu baslatir' $proje
 Yeni-Kisayol (Join-Path $baslat 'Proje Klasoru.lnk') "$env:SystemRoot\explorer.exe" "`"$proje`"" 'Proje klasorunu acar' $null
+
+$powershell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+$onedrive = if ($env:OneDrive) { $env:OneDrive } else { [Environment]::GetFolderPath('MyDocuments') }
+Yeni-Kisayol (Join-Path $baslat 'Yedeklemeyi Kur.lnk') $powershell `
+	"-NoLogo -ExecutionPolicy Bypass -File `"$proje\tools\yedek-kur.ps1`"" 'Haftalik otomatik yedeklemeyi kurar' $proje
+Yeni-Kisayol (Join-Path $baslat 'Simdi Yedek Al.lnk') $powershell `
+	"-NoLogo -ExecutionPolicy Bypass -File `"$proje\tools\yedek-al.ps1`" -Bekle" 'Hemen yedek alir' $proje
+Yeni-Kisayol (Join-Path $baslat 'Yedek Klasoru.lnk') "$env:SystemRoot\explorer.exe" `
+	"`"$(Join-Path $onedrive 'Tayfun Cam Balkon Yedekleri')`"" 'Yedeklerin bulundugu klasor' $null
 
 Write-Host "Kisayollar olusturuldu: masaustu ve Baslat menusu > Tayfun Cam Balkon"
