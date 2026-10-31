@@ -33,3 +33,6 @@ logs/
 .vercel/
 .vercel
 .env*
+
+# Kisayol ikonu (tools\kisayollari-olustur.ps1 uretir)
+tools/tayfun.ico
