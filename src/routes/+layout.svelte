@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import favicon from '#lib/assets/favicon.svg';
 	import AppSidebar from '#lib/components/AppSidebar.svelte';
 	import { auth } from '#lib/stores/auth';
@@ -10,19 +12,39 @@
 	let { children }: LayoutProps = $props();
 	let initialized = $state(false);
 
-	onMount(async () => {
-		// Initialize auth
-		const unsubscribe = await auth.initialize();
+	let unsubscribeAuth: (() => void) | undefined;
+	let unsubscribeRealtime: (() => void) | undefined;
 
-		// Load initial data
-		await data.loadAll();
-		const unsubscribeRealtime = data.setupRealtimeListeners();
-
-		initialized = true;
+	onMount(() => {
+		auth.initialize().then((unsubscribe) => {
+			unsubscribeAuth = unsubscribe;
+			initialized = true;
+		});
 
 		return () => {
-			unsubscribe?.();
+			unsubscribeAuth?.();
 			unsubscribeRealtime?.();
+		};
+	});
+
+	const publicPaths = ['/', '/auth/login', '/auth/reset'];
+
+	$effect(() => {
+		if (initialized && !$isAuthenticated && !publicPaths.includes(page.url.pathname)) {
+			goto('/auth/login', { replaceState: true });
+		}
+	});
+
+	// Veriler RLS nedeniyle yalnızca Supabase oturumu açıkken okunabilir
+	$effect(() => {
+		if (!$isAuthenticated) return;
+
+		data.loadAll();
+		unsubscribeRealtime = data.setupRealtimeListeners();
+
+		return () => {
+			unsubscribeRealtime?.();
+			unsubscribeRealtime = undefined;
 		};
 	});
 </script>
@@ -78,7 +100,7 @@
 </style>
 
 {#if initialized}
-	{#if $isAuthenticated}
+	{#if $isAuthenticated && !page.url.pathname.startsWith('/auth/')}
 		<div class="app-shell">
 			<AppSidebar />
 			<main class="app-content">{@render children()}</main>

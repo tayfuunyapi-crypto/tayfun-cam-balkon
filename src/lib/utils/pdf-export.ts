@@ -1,4 +1,3 @@
-import html2pdf from 'html2pdf.js';
 import { calculateInstallments, type InstallmentOption } from './installments';
 
 export interface QuoteData {
@@ -118,5 +117,7 @@ export async function generateQuotePDF(data: QuoteData) {
 		jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
 	};
 
+	// html2pdf tarayıcı nesnelerine ihtiyaç duyar; sunucuda yüklenirse sayfa 500 verir
+	const { default: html2pdf } = await import('html2pdf.js');
 	await html2pdf().set(options).from(element).save();
 }

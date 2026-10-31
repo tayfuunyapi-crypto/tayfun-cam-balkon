@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { supabase } from '#lib/supabase';
+	import { getProject, updateProjectData } from '#lib/project-records';
 	import { ChevronLeft, Plus, X, Save } from '@lucide/svelte';
 
 	interface Material {
@@ -67,13 +67,12 @@
 	async function loadProjectData() {
 		try {
 			loading = true;
-			const response = await fetch(`/api/projects/${projectKey}`);
-			const result = await response.json();
+			const record = await getProject(projectKey);
 
-			if (result.data) {
-				projectData = result.data;
-				if (result.data.data?.montage_details) {
-					montageData = result.data.data.montage_details;
+			if (record) {
+				projectData = record;
+				if (record.data?.montage_details) {
+					montageData = record.data.montage_details as MontageDetails;
 				}
 			}
 		} catch (error) {
@@ -137,17 +136,8 @@
 		try {
 			saving = true;
 
-			const response = await fetch(`/api/projects/${projectKey}`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ montage_details: montageData })
-			});
-
-			if (response.ok) {
-				alert('Montaj detayları kaydedildi!');
-			} else {
-				alert('Hata: Veriler kaydedilemedi');
-			}
+			await updateProjectData(projectKey, { montage_details: montageData });
+			alert('Montaj detayları kaydedildi!');
 		} catch (error) {
 			console.error('Error saving:', error);
 			alert('Kaydetme sırasında hata oluştu');

@@ -1,31 +1,9 @@
 import { redirect } from '@sveltejs/kit';
-import { SESSION_COOKIE, validSession } from '#lib/server/session';
 
-const protectedRoutes = [
-	'/montage',
-	'/api/projects',
-	'/analytics',
-	'/customers',
-	'/designs',
-	'/projects',
-	'/settings',
-	'/systems',
-	'/teklif',
-	'/templates',
-	'/wizard'
-];
-
+// Oturum Supabase Auth ile tarayıcıda tutulur; sayfa koruması +layout.svelte'de,
+// veri koruması Supabase RLS ile yapılır.
 export const handle = async ({ event, resolve }: { event: any; resolve: any }) => {
-	const { pathname } = event.url;
-
-	if (pathname === '/auth/signup') {
-		redirect(303, '/auth/login');
-	}
-
-	if (
-		protectedRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`)) &&
-		!validSession(event.cookies.get(SESSION_COOKIE))
-	) {
+	if (event.url.pathname === '/auth/signup') {
 		redirect(303, '/auth/login');
 	}
 

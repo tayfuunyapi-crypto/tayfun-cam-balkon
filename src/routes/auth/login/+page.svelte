@@ -25,6 +25,28 @@
 			loading = false;
 		}
 	}
+
+	let resetSent = $state(false);
+
+	async function handleForgotPassword(event: MouseEvent) {
+		event.preventDefault();
+		if (!email) {
+			error = 'Önce e-posta adresinizi yazın';
+			return;
+		}
+
+		loading = true;
+		error = '';
+
+		try {
+			await auth.sendPasswordReset(email);
+			resetSent = true;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Bağlantı gönderilemedi';
+		} finally {
+			loading = false;
+		}
+	}
 </script>
 
 <div class="auth-page">
@@ -32,7 +54,7 @@
 		<h1>Giriş Yap</h1>
 		<p>Tayfun Cam Balkon Sistemi</p>
 
-		<form on:submit|preventDefault={handleLogin}>
+		<form onsubmit={(event) => { event.preventDefault(); handleLogin(); }}>
 			<div class="form-group">
 				<label for="email">E-posta</label>
 				<input
@@ -64,6 +86,13 @@
 			</button>
 		</form>
 
+		<p class="signup-link">
+			{#if resetSent}
+				Şifre sıfırlama bağlantısı {email} adresine gönderildi.
+			{:else}
+				<a href="/auth/login" onclick={handleForgotPassword}>Şifremi unuttum</a>
+			{/if}
+		</p>
 	</div>
 </div>
 

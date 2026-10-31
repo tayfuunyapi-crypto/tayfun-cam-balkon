@@ -1,4 +1,5 @@
 import { writable, derived } from 'svelte/store';
+import { supabase } from '../supabase';
 
 type AppUser = {
 	id: string;
@@ -9,36 +10,49 @@ const currentUser = writable<AppUser | null>(null);
 export const user = derived(currentUser, ($user) => $user);
 export const isAuthenticated = derived(currentUser, ($user) => $user !== null);
 
+function toAppUser(sessionUser: { id: string; email?: string } | null | undefined): AppUser | null {
+	return sessionUser ? { id: sessionUser.id, email: sessionUser.email ?? '' } : null;
+}
+
 export const auth = {
 	session: currentUser,
 	user,
 	isAuthenticated,
 	async initialize() {
-		const response = await fetch('/api/auth/session');
-		if (!response.ok) {
-			currentUser.set(null);
-			return;
-		}
+		const { data } = await supabase.auth.getSession();
+		currentUser.set(toAppUser(data.session?.user));
 
-		const data = await response.json();
-		currentUser.set(data.user ?? null);
+		const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+			currentUser.set(toAppUser(session?.user));
+		});
+
+		return () => listener.subscription.unsubscribe();
 	},
 	async signInWithPassword(email: string, password: string) {
-		const response = await fetch('/api/auth/login', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ email, password })
-		});
-		const data = await response.json();
+		const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
 
-		if (!response.ok) throw new Error(data.message ?? 'Giriş başarısız');
-		currentUser.set({ id: 'app-admin', email: data.email });
+		if (error) {
+			throw new Error(
+				error.message === 'Invalid login credentials' ? 'E-posta veya şifre hatalı' : error.message
+			);
+		}
+		currentUser.set(toAppUser(data.user));
+	},
+	async sendPasswordReset(email: string) {
+		const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+			redirectTo: `${window.location.origin}/auth/reset`
+		});
+		if (error) throw new Error(error.message);
+	},
+	async updatePassword(password: string) {
+		const { error } = await supabase.auth.updateUser({ password });
+		if (error) throw new Error(error.message);
 	},
 	async signUp() {
 		throw new Error('Yeni kullanıcı kaydı yönetici tarafından yapılır');
 	},
 	async signOut() {
-		await fetch('/api/auth/logout', { method: 'POST' });
+		await supabase.auth.signOut();
 		currentUser.set(null);
 	}
 };

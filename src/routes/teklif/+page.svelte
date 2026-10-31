@@ -57,7 +57,7 @@
 				.select('*')
 				.eq('kind', 'quote')
 				.eq('deleted', false)
-				.order('created_at', { ascending: false });
+				.order('updated_at', { ascending: false });
 
 			if (err) throw err;
 
@@ -76,7 +76,7 @@
 				sentAt: d.data.sentAt,
 				validUntil: d.data.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
 				notes: d.data.notes || '',
-				createdAt: d.data.created_at || d.created_at,
+				createdAt: d.data.created_at || d.updated_at,
 				updatedAt: d.updated_at
 			}));
 		} catch (err) {

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { data } from '#lib/stores/data';
+	import { updateProjectData } from '#lib/project-records';
 	import { recordData, statusInfo, formatMoney } from '#lib/workflow';
 	import { ChevronLeft, Clock, MapPin, User, Image as IconImage, Save, AlertCircle, Check, X } from '@lucide/svelte';
 
@@ -103,19 +104,12 @@
 		saving = true;
 
 		try {
-			const response = await fetch(`/api/projects/${project.key}`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					daily_tracking: dailyTracking,
-					updated_at: new Date().toISOString()
-				})
-			});
-
-			if (response.ok) {
-				await data.loadAll();
-				alert('Gün takibi kaydedildi!');
-			}
+			await updateProjectData(project.key, { daily_tracking: dailyTracking });
+			await data.loadAll();
+			alert('Gün takibi kaydedildi!');
+		} catch (error) {
+			console.error('Error saving:', error);
+			alert('Hata: Veriler kaydedilemedi');
 		} finally {
 			saving = false;
 		}

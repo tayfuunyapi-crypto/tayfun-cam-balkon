@@ -50,7 +50,7 @@
 				.select('*')
 				.eq('kind', 'template')
 				.eq('deleted', false)
-				.order('created_at', { ascending: false });
+				.order('updated_at', { ascending: false });
 
 			if (err) throw err;
 
@@ -65,7 +65,7 @@
 				width: d.data.width || 0,
 				height: d.data.height || 0,
 				notes: d.data.notes || '',
-				createdAt: d.created_at,
+				createdAt: d.data.created_at || d.updated_at,
 				usageCount: d.data.usageCount || 0
 			}));
 		} catch (err) {

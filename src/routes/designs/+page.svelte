@@ -31,22 +31,30 @@
 				.from('cb_records')
 				.select('*')
 				.eq('kind', 'drawing')
-				.order('created_at', { ascending: false });
+				.eq('deleted', false)
+				.order('updated_at', { ascending: false });
 
 			if (err) throw err;
 
-			designs = (data || []).map((d: any) => ({
-				id: d.key,
-				name: d.data.name || `Tasarım ${new Date(d.data.created_at).toLocaleDateString('tr-TR')}`,
-				system: d.data.system,
-				width: d.data.props?.width || 0,
-				height: d.data.props?.height || 0,
-				color: d.data.props?.color || '',
-				glassType: d.data.props?.glassType || '',
-				price: d.data.price || 0,
-				area: d.data.area || 0,
-				created_at: d.data.created_at
-			}));
+			// Web çizimleri props.width/height kullanır; masaüstü/mobil çizimleri segments + result + pricing
+			designs = (data || []).map((d: any) => {
+				const segments: any[] = Array.isArray(d.data.segments) ? d.data.segments : [];
+				const system = d.data.system || d.data.system_code || '';
+				const glass = [d.data.props?.glass_thickness, d.data.props?.glass_color].filter(Boolean).join(' ');
+
+				return {
+					id: d.key,
+					name: d.data.name || (d.data.pos_no ? `Poz ${d.data.pos_no} · ${system}` : `Tasarım · ${system}`),
+					system,
+					width: d.data.props?.width || segments.reduce((sum, s) => sum + (Number(s.width) || 0), 0),
+					height: d.data.props?.height || Math.max(0, ...segments.map((s) => Number(s.height) || 0)),
+					color: d.data.props?.color || '',
+					glassType: d.data.props?.glassType || glass,
+					price: d.data.price || d.data.pricing?.total || d.data.result?.sale || 0,
+					area: d.data.area || d.data.result?.area || 0,
+					created_at: d.data.created_at || d.data.updated_at || d.updated_at
+				};
+			});
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Tasarımlar yüklenemedi';
 		} finally {
