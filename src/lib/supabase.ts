@@ -15,7 +15,7 @@ export type Database = {
 			cb_records: {
 				Row: {
 					key: string;
-					kind: 'customer' | 'project' | 'drawing' | 'bundle' | 'webapp' | 'cut' | 'sysedit';
+					kind: 'customer' | 'project' | 'quote' | 'template' | 'drawing' | 'bundle' | 'webapp' | 'cut' | 'sysedit';
 					data: Record<string, unknown>;
 					origin: 'desktop' | 'mobile' | 'web';
 					deleted: boolean;

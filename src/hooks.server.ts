@@ -2,6 +2,8 @@ import { redirect } from '@sveltejs/kit';
 import { SESSION_COOKIE, validSession } from '#lib/server/session';
 
 const protectedRoutes = [
+	'/montage',
+	'/api/projects',
 	'/analytics',
 	'/customers',
 	'/designs',

@@ -13,8 +13,7 @@ export default defineConfig({
 
 			// Vercel adapter for optimal production deployment
 			adapter: adapter({
-				runtime: 'nodejs22.x',
-				strict: true
+				runtime: 'nodejs22.x'
 			})
 		})
 	]
