@@ -904,17 +904,30 @@ function passwordSheet(first) {
 }
 
 // ---------------------------------------------------------------- montaj planı
+// Montaj, projenin kendisinde (data.install) tutulur. Masaüstü programın eskiden paketle gönderdiği montajlar
+// (S.bundle.installations) okunmaya devam eder ama yenileri buraya eklenmez.
+const INSTALL_STATES = [["PLANLANDI", "Planlandı"], ["TAMAMLANDI", "Tamamlandı"], ["ERTELENDI", "Ertelendi"], ["IPTAL", "İptal"]];
+const installStateName = v => (INSTALL_STATES.find(s => s[0] === v) || INSTALL_STATES[0])[1];
+const WAITING_STATUSES = ["ONAYLANDI", "URETIMDE"];
+function projectInstallRow(p) {
+  const c = (rec(p.data.customer_key) || {}).data || {}, i = p.data.install || {};
+  return { project_key: p.key, project_name: p.data.name, customer_name: c.name, customer_phone: c.phone, address: c.address, city: c.city,
+    install_date: i.date, install_time: i.time, assigned_employee: i.team, notes: i.notes, status: i.status || "PLANLANDI", from_project: true };
+}
 function montageView(filter) {
   S.tab = "montage";
   filter = filter || "upcoming";
   const updates = new Map([...S.recs.values()].filter(r => r.kind === "sysedit" && !r.deleted && r.data && r.data.op === "installation_status")
     .map(r => [Number(r.data.installation_id), r.data]));
-  const all = ((S.bundle && S.bundle.installations) || []).map(x => {
+  const legacy = ((S.bundle && S.bundle.installations) || []).map(x => {
     const update = updates.get(Number(x.id));
     return update ? { ...x, status: update.status, mobile_update: true } : x;
-  }).sort((a, b) =>
+  });
+  const planned = byKind("project").filter(p => p.data.install && p.data.install.date);
+  const all = [...legacy, ...planned.map(projectInstallRow)].sort((a, b) =>
     (String(a.install_date) + String(a.install_time)).localeCompare(String(b.install_date) + String(b.install_time)));
-  const waiting = (S.bundle && S.bundle.installation_waiting) || [];
+  const waiting = byKind("project").filter(p => WAITING_STATUSES.includes(p.data.status) && !(p.data.install && p.data.install.date))
+    .map(p => ({ ...projectInstallRow(p), status: p.data.status }));
   const now = new Date(), pad = n => String(n).padStart(2, "0");
   const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   const done = x => x.status === "TAMAMLANDI";
@@ -944,11 +957,13 @@ function montageView(filter) {
         <div class="agenda-meta">${x.assigned_employee ? `<span>Ekip: ${esc(x.assigned_employee)}</span>` : ""}${location ? `<span>${esc(location)}</span>` : ""}</div>
         ${x.notes ? `<div class="t2" style="margin-top:8px">${esc(x.notes)}</div>` : ""}
         <div class="row" style="margin-top:10px;gap:8px">${phone ? `<a class="obtn grow" style="text-align:center;text-decoration:none" href="tel:${phone}" onclick="event.stopPropagation()">Ara</a>` : ""}
-        ${x.id ? `<button class="obtn grow" data-inst="${x.id}">Durumu Güncelle</button>` : ""}</div></div>`;
+        ${x.from_project ? `<button class="obtn grow" data-pinst="${esc(x.project_key)}">Durumu Güncelle</button>`
+          : x.id ? `<button class="obtn grow" data-inst="${x.id}">Durumu Güncelle</button>` : ""}</div></div>`;
     }).join("")}`).join("") : `<div class="empty">${filter === "upcoming" && waiting.length ? "Planlanmış montaj yok." : "Bu bölümde montaj kaydı yok."}</div>`}</div>`,
     { back: () => goTo("#/home") });
   document.querySelectorAll(".agenda-head button").forEach(b => b.onclick = () => montageView(b.dataset.f));
   document.querySelectorAll("[data-inst]").forEach(b => b.onclick = e => { e.stopPropagation(); montageStatusSheet(Number(b.dataset.inst), filter); });
+  document.querySelectorAll("[data-pinst]").forEach(b => b.onclick = e => { e.stopPropagation(); projectInstallSheet(b.dataset.pinst, () => montageView(filter)); });
   document.querySelectorAll(".agenda-card[data-k]").forEach(c => c.onclick = () => {
     if (c.dataset.k) { S.projBack = "#/montage"; location.hash = "#/project/" + encodeURIComponent(c.dataset.k); }
   });
@@ -982,6 +997,46 @@ function montageStatusSheet(installId, filter) {
         close(); montageView(filter); toast("Durum kaydedildi; masaüstüne gönderilecek");
       } finally { loading(false); }
     };
+  });
+}
+
+// projeye montaj tarihi/ekibi verir ve durumunu günceller; tarih ve ekip yalnız yönetici tarafından değiştirilir
+function projectInstallSheet(key, after) {
+  const p = rec(key);
+  if (!p) return toast("Proje bulunamadı");
+  const i = p.data.install || {}, admin = isAdmin(), lock = admin ? "" : " disabled";
+  const who = (S.bundle && S.bundle.person) || (S.user && S.user.email ? S.user.email.split("@")[0] : "");
+  sheet(i.date ? "Montaj" : "Montaj Planla", `
+    <div class="card" style="margin-bottom:12px"><div class="t1">${esc(custName(p.data.customer_key))}</div><div class="t2">${esc(p.data.name || "Proje")}</div></div>
+    <div class="row" style="gap:8px"><div class="grow"><label class="f">Tarih</label><input class="f" type="date" id="pid" value="${esc(i.date || "")}"${lock}></div>
+      <div class="grow"><label class="f">Saat</label><input class="f" type="time" id="pit" value="${esc(i.time || "")}"${lock}></div></div>
+    <label class="f">Ekip</label><input class="f" id="pie" value="${esc(i.team || "")}" placeholder="Ekip veya personel adı"${lock}>
+    <label class="f">Not</label><textarea class="f" id="pin" placeholder="Adres tarifi, malzeme vb.">${esc(i.notes || "")}</textarea>
+    ${i.date ? `<label class="f">Durum</label><select class="f" id="pis">${INSTALL_STATES
+      .map(([k, n]) => `<option value="${k}"${k === (i.status || "PLANLANDI") ? " selected" : ""}>${n}</option>`).join("")}</select>
+      <div class="note">Tamamlandı seçilirse proje durumu da Teslim olur.</div>` : ""}
+    <button class="btn" id="pisave">KAYDET</button>
+    ${i.date && admin ? `<button class="btn ghost" id="pidel">Montaj planını kaldır</button>` : ""}`, (close, root) => {
+    const save = async install => {
+      const data = { ...p.data, install };
+      if (install && install.status === "TAMAMLANDI" && i.status !== "TAMAMLANDI") {
+        if (!confirm("Montaj tamamlandı ve proje Teslim olarak işaretlensin mi?")) return;
+        data.status = "TESLIM";
+      }
+      loading(true, "Kaydediliyor…");
+      try { await saveRec(key, "project", data); close(); toast(install ? "Montaj kaydedildi" : "Montaj planı kaldırıldı"); after && after(); }
+      catch (e) {} finally { loading(false); }
+    };
+    root.querySelector("#pisave").onclick = () => {
+      const date = root.querySelector("#pid").value;
+      if (!date) return toast("Montaj tarihini seçin");
+      const st = root.querySelector("#pis");
+      save({ ...i, date, time: root.querySelector("#pit").value, team: root.querySelector("#pie").value.trim(),
+        notes: root.querySelector("#pin").value.trim(), status: st ? st.value : "PLANLANDI",
+        updated_by: who, updated_at: new Date().toISOString() });
+    };
+    const del = root.querySelector("#pidel");
+    if (del) del.onclick = () => { if (confirm("Bu projenin montaj planı kaldırılsın mı?")) save(null); };
   });
 }
 
@@ -1020,12 +1075,17 @@ function projectView(key) {
   S.tab = "projects";
   const dws = projectDrawings(key);
   const sale = dws.reduce((s, d) => s + num((d.data.result || {}).sale), 0), cost = dws.reduce((s, d) => s + num((d.data.result || {}).total_cost), 0);
+  const ins = p.data.install;
+  const insText = ins && ins.date ? [new Date(ins.date + "T12:00:00").toLocaleDateString("tr-TR", { weekday: "short", day: "numeric", month: "long" }),
+    ins.time, ins.team && "Ekip: " + ins.team].filter(Boolean).join(" · ") : "Henüz planlanmadı";
   shell(p.data.name || "Proje", `
     <div class="card"><div class="row"><div class="grow"><div class="t1">${esc(p.data.name)}</div>
       <div class="t2">${esc(custName(p.data.customer_key))} · ${esc(statusName(p.data.status))}</div>
       ${p.data.description ? `<div class="t2">${esc(p.data.description)}</div>` : ""}</div>
       <button class="ib" style="background:var(--field);color:var(--teal)" id="editP">✎</button></div></div>
     <div class="kv" style="margin:10px 0"><div><b class="money">${tl(sale)}</b><small>Toplam Tutar</small></div><div><b style="color:${sale - cost >= 0 ? "var(--green)" : "var(--red)"}">${tl(sale - cost)}</b><small>Kazanç</small></div></div>
+    <div class="card tap" id="instP" style="margin-bottom:10px"><div class="row"><div class="grow"><div class="t1">Montaj</div><div class="t2">${esc(insText)}</div></div>
+      <span class="pill${ins && ins.date ? "" : " amber"}">${ins && ins.date ? esc(installStateName(ins.status)) : "Planla"}</span></div></div>
     <div class="list" id="dl">${dws.length ? dws.map(d => {
       const r = d.data.result || {};
       return `<div class="card tap" data-k="${esc(d.key)}"><div class="row"><div class="seg"><div class="n">${esc(d.data.pos_no || "1")}</div></div>
@@ -1040,6 +1100,7 @@ function projectView(key) {
   document.querySelectorAll("#dl .obtn").forEach(b => b.onclick = e => { e.stopPropagation(); if (isRail(b.dataset.o)) return openRailingDrawing(b.dataset.o, "prev"); location.hash = "#/outputs/" + encodeURIComponent(b.dataset.o); });
   $("#fab").onclick = () => newDrawing(key);
   $("#editP").onclick = () => projectForm(key);
+  $("#instP").onclick = () => projectInstallSheet(key, () => projectView(key));
 }
 
 function projectForm(key, customerKey) {
