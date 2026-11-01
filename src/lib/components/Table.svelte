@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ChevronUp, ChevronDown, Trash2, Edit2 } from 'lucide-svelte';
+	import { ChevronUp, ChevronDown, Trash2, Edit2 } from '@lucide/svelte';
 
 	interface Column<T> {
 		key: keyof T;
