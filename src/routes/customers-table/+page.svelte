@@ -5,6 +5,7 @@
 	import Table from '#lib/components/Table.svelte';
 	import Button from '#lib/components/Button.svelte';
 	import Input from '#lib/components/Form/Input.svelte';
+	import TextArea from '#lib/components/Form/TextArea.svelte';
 	import Modal from '#lib/components/Modal.svelte';
 	import Toast from '#lib/components/Toast.svelte';
 	import PageContainer from '#lib/components/Layout/PageContainer.svelte';
@@ -164,14 +165,15 @@
 		if (!confirm(`${selectedItems.size} müşteri silinsin mi?`)) return;
 
 		try {
+			const count = selectedItems.size;
 			for (const customer of selectedItems) {
 				await customerStore.deleteCustomer(customer.id);
 			}
-			selectedItems.clear();
+			selectedItems = new Set();
 			toastStore.addToast({
 				type: 'success',
 				title: 'Başarılı',
-				message: `${selectedItems.size} müşteri silindi.`
+				message: `${count} müşteri silindi.`
 			});
 		} catch (error) {
 			toastStore.addToast({
@@ -226,17 +228,17 @@
 		<div class="actions">
 			{#if selectedItems.size > 0}
 				<span class="selection-info">{selectedItems.size} seçildi</span>
-				<Button variant="danger" on:click={handleBulkDelete} disabled={isSaving}>
+				<Button variant="danger" onclick={handleBulkDelete} disabled={isSaving}>
 					Seçilenleri Sil ({selectedItems.size})
 				</Button>
 			{/if}
 
-			<Button variant="primary" on:click={openCreateModal}>
+			<Button variant="primary" onclick={openCreateModal}>
 				<Plus size={18} />
 				Yeni Müşteri
 			</Button>
 
-			<Button variant="secondary" on:click={exportCustomerListPDF} disabled={isLoading}>
+			<Button variant="secondary" onclick={exportCustomerListPDF} disabled={isLoading}>
 				<Download size={18} />
 				PDF İndir
 			</Button>
@@ -264,7 +266,7 @@
 	{#if showModal}
 		<Modal
 			title={editingId ? 'Müşteri Düzenle' : 'Yeni Müşteri'}
-			on:close={() => (showModal = false)}
+			onclose={() => (showModal = false)}
 		>
 			<div class="form-grid">
 				<Input
@@ -299,8 +301,8 @@
 			/>
 
 			<div class="modal-actions">
-				<Button variant="secondary" on:click={() => (showModal = false)}>İptal</Button>
-				<Button variant="primary" on:click={handleSave} disabled={isSaving}>
+				<Button variant="secondary" onclick={() => (showModal = false)}>İptal</Button>
+				<Button variant="primary" onclick={handleSave} disabled={isSaving}>
 					{isSaving ? 'Kaydediliyor...' : 'Kaydet'}
 				</Button>
 			</div>

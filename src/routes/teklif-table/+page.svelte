@@ -284,13 +284,13 @@
 				<span class="selection-info">{selectedItems.size} seçildi</span>
 			{/if}
 
-			<Button variant="primary" on:click={openCreateModal}>
+			<Button variant="primary" onclick={openCreateModal}>
 				<Plus size={18} />
 				Yeni Teklif
 			</Button>
 
 			{#if selectedItems.size > 0}
-				<Button variant="secondary" on:click={exportQuotesPDF} disabled={isSaving}>
+				<Button variant="secondary" onclick={exportQuotesPDF} disabled={isSaving}>
 					<Download size={18} />
 					PDF İndir ({selectedItems.size})
 				</Button>
@@ -319,7 +319,7 @@
 	{#if showModal}
 		<Modal
 			title={editingId ? 'Teklif Düzenle' : 'Yeni Teklif'}
-			on:close={() => (showModal = false)}
+			onclose={() => (showModal = false)}
 		>
 			<div class="form-grid">
 				<Input
@@ -392,8 +392,8 @@
 			{/if}
 
 			<div class="modal-actions">
-				<Button variant="secondary" on:click={() => (showModal = false)}>İptal</Button>
-				<Button variant="primary" on:click={handleSave} disabled={isSaving}>
+				<Button variant="secondary" onclick={() => (showModal = false)}>İptal</Button>
+				<Button variant="primary" onclick={handleSave} disabled={isSaving}>
 					{isSaving ? 'Kaydediliyor...' : 'Kaydet'}
 				</Button>
 			</div>

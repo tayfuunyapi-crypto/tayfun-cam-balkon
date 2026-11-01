@@ -29,7 +29,7 @@
 		striped = true,
 		onEdit,
 		onDelete,
-		selectedItems = new Set(),
+		selectedItems = $bindable(new Set()),
 		onSelectionChange
 	}: Props<any> = $props();
 

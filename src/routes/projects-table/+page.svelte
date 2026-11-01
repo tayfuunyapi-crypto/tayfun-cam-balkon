@@ -12,6 +12,7 @@
 	import PageContainer from '#lib/components/Layout/PageContainer.svelte';
 	import { Download, Plus, Search } from '@lucide/svelte';
 	import type { Project, ProjectStatus } from '#lib/types/models';
+	import { PROJECT_STATUSES, statusInfo } from '#lib/workflow';
 
 	let isLoading = $state(true);
 	let isSaving = $state(false);
@@ -24,7 +25,7 @@
 	let formData = $state({
 		name: '',
 		description: '',
-		status: 'draft' as ProjectStatus,
+		status: 'OLCULDU' as ProjectStatus,
 		budget: 0,
 		timeline: 0,
 		notes: ''
@@ -32,10 +33,7 @@
 
 	const statusOptions = [
 		{ value: 'all' as const, label: 'Tüm Projeler' },
-		{ value: 'draft' as const, label: 'Taslak' },
-		{ value: 'in_progress' as const, label: 'Devam Ediyor' },
-		{ value: 'completed' as const, label: 'Tamamlandı' },
-		{ value: 'on_hold' as const, label: 'Bekleme' }
+		...PROJECT_STATUSES.map((s) => ({ value: s.code, label: s.label }))
 	];
 
 	const columns = [
@@ -50,19 +48,11 @@
 			label: 'Durum',
 			sortable: true,
 			width: '15%',
-			format: (value: ProjectStatus) => {
-				const statusMap: Record<ProjectStatus, string> = {
-					draft: 'Taslak',
-					in_progress: 'Devam Ediyor',
-					completed: 'Tamamlandı',
-					on_hold: 'Bekleme'
-				};
-				return statusMap[value] || value;
-			}
+			format: (value: ProjectStatus) => statusInfo(value).label
 		},
 		{
 			key: 'budget' as const,
-			label: 'Bütçe (₺)',
+			label: 'Tutar (₺)',
 			sortable: true,
 			width: '15%',
 			format: (value: number) => {
@@ -96,7 +86,7 @@
 		formData = {
 			name: '',
 			description: '',
-			status: 'draft',
+			status: 'OLCULDU',
 			budget: 0,
 			timeline: 0,
 			notes: ''
@@ -142,7 +132,7 @@
 			formData = {
 				name: '',
 				description: '',
-				status: 'draft',
+				status: 'OLCULDU',
 				budget: 0,
 				timeline: 0,
 				notes: ''
@@ -237,13 +227,13 @@
 				<span class="selection-info">{selectedItems.size} seçildi</span>
 			{/if}
 
-			<Button variant="primary" on:click={openCreateModal}>
+			<Button variant="primary" onclick={openCreateModal}>
 				<Plus size={18} />
 				Yeni Proje
 			</Button>
 
 			{#if selectedItems.size > 0}
-				<Button variant="secondary" on:click={exportProjectsPDF} disabled={isSaving}>
+				<Button variant="secondary" onclick={exportProjectsPDF} disabled={isSaving}>
 					<Download size={18} />
 					PDF İndir ({selectedItems.size})
 				</Button>
@@ -272,7 +262,7 @@
 	{#if showModal}
 		<Modal
 			title={editingId ? 'Proje Düzenle' : 'Yeni Proje'}
-			on:close={() => (showModal = false)}
+			onclose={() => (showModal = false)}
 		>
 			<div class="form-grid">
 				<Input
@@ -316,8 +306,8 @@
 			/>
 
 			<div class="modal-actions">
-				<Button variant="secondary" on:click={() => (showModal = false)}>İptal</Button>
-				<Button variant="primary" on:click={handleSave} disabled={isSaving}>
+				<Button variant="secondary" onclick={() => (showModal = false)}>İptal</Button>
+				<Button variant="primary" onclick={handleSave} disabled={isSaving}>
 					{isSaving ? 'Kaydediliyor...' : 'Kaydet'}
 				</Button>
 			</div>

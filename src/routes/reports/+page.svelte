@@ -6,7 +6,7 @@
 	import Card from '#lib/components/Card.svelte';
 	import Button from '#lib/components/Button.svelte';
 	import PageContainer from '#lib/components/Layout/PageContainer.svelte';
-	import { Download, TrendingUp, Users, FileText, CheckCircle } from 'lucide-svelte';
+	import { Download, TrendingUp, Users, FileText, CheckCircle } from '@lucide/svelte';
 
 	let isLoading = $state(true);
 
@@ -25,10 +25,10 @@
 	// Proje istatistikleri
 	let totalProjects = $derived($projectStore.items.length);
 	let completedProjects = $derived(
-		$projectStore.items.filter((p) => p.status === 'completed').length
+		$projectStore.items.filter((p) => p.status === 'TESLIM').length
 	);
 	let activeProjects = $derived(
-		$projectStore.items.filter((p) => p.status === 'in_progress').length
+		$projectStore.items.filter((p) => p.status !== 'TESLIM').length
 	);
 	let totalProjectBudget = $derived(
 		$projectStore.items.reduce((sum, p) => sum + (p.budget || 0), 0)
@@ -383,7 +383,7 @@
 
 		<!-- Export Button -->
 		<div class="export-section">
-			<Button variant="secondary" on:click={exportMonthlyReport}>
+			<Button variant="secondary" onclick={exportMonthlyReport}>
 				<Download size={18} />
 				Aylık Raporu İndir (PDF/HTML)
 			</Button>
