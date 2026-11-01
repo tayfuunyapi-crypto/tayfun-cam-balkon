@@ -10,7 +10,7 @@
 	import Modal from '#lib/components/Modal.svelte';
 	import Toast from '#lib/components/Toast.svelte';
 	import PageContainer from '#lib/components/Layout/PageContainer.svelte';
-	import { Download, Plus, Search } from 'lucide-svelte';
+	import { Download, Plus, Search } from '@lucide/svelte';
 	import type { Quote, QuoteStatus } from '#lib/types/models';
 
 	let isLoading = $state(true);
